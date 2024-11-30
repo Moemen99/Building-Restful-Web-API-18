@@ -376,3 +376,143 @@ else
     builder.WithOrigins("https://production-domain.com");
 }
 ```
+
+
+
+# Advanced CORS Configuration in ASP.NET Core
+
+## Configuration Approaches
+
+### 1. Specific Methods and Headers
+
+```csharp
+services.AddCors(options => 
+    options.AddPolicy("MyPolicy", builder =>
+        builder
+            .WithMethods("PUT", "GET", "POST")
+            .WithHeaders(HeaderNames.ContentType, "")
+            .WithOrigins("http://localhost:5173")
+    )
+);
+```
+
+### 2. Common Configuration (Recommended)
+
+```csharp
+services.AddCors(options => 
+    options.AddPolicy("MyPolicy", builder =>
+        builder
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .WithOrigins("http://localhost:5173")
+    )
+);
+```
+
+## Environment-Specific Configuration
+
+### appsettings.json (Production)
+```json
+{
+  "ConnectionStrings": {},
+  "Logging": {
+    "LogLevel": {}
+  },
+  "AllowedHosts": "*",
+  "Jwt": {},
+  "AllowedOrigins": [
+    "https://www.survey-basket.com"
+  ]
+}
+```
+
+### appsettings.Development.json
+```json
+{
+  "Logging": {
+    "LogLevel": {}
+  },
+  "AllowedOrigins": [
+    "http://localhost:5173",
+    "http://localhost:5200"
+  ]
+}
+```
+
+### Updated DependencyInjection Class
+
+```csharp
+public static class DependencyInjection 
+{
+    public static IServiceCollection AddDependencies(
+        this IServiceCollection services, 
+        IConfiguration configuration)
+    {
+        services.AddControllers();
+        
+        // Read allowed origins from configuration
+        var allowedOrigins = configuration.GetSection("AllowedOrigins").Get<string[]>();
+        
+        // Configure CORS with origins from config
+        services.AddCors(options => 
+            options.AddPolicy("MyPolicy", builder =>
+                builder
+                    .AllowAnyMethod()
+                    .AllowAnyHeader()
+                    .WithOrigins(allowedOrigins!)
+            )
+        );
+
+        services.AddAuthConfig(configuration);
+        
+        var connectionString = configuration.GetConnectionString("DefaultConnection") ??
+            throw new InvalidOperationException(
+                "Connection string 'DefaultConnection' not found.");
+                
+        services.AddDbContext<ApplicationDbContext>(options => 
+            options.UseSqlServer(connectionString));
+            
+        // Rest of configurations...
+    }
+}
+```
+
+## Key Benefits
+
+1. **Environment Separation**
+   - Different origins for development and production
+   - Easy to manage multiple environments
+   - Configuration stays out of code
+
+2. **Maintainability**
+   - Origins stored in configuration files
+   - Easy to update without code changes
+   - Better version control management
+
+3. **Security**
+   - Environment-specific restrictions
+   - Clear separation between development and production URLs
+   - No hardcoded values in code
+
+## Best Practices
+
+1. **Configuration Management**
+   - Keep URLs in appropriate environment files
+   - Use proper JSON structure
+   - Consider using configuration validation
+
+2. **Error Handling**
+   - Handle null configurations gracefully
+   - Provide meaningful error messages
+   - Consider fallback options
+
+3. **Development Workflow**
+   - Keep development URLs separate
+   - Use local configurations for testing
+   - Document required configuration changes
+
+## Remember
+- Always use environment-specific settings
+- Avoid hardcoding URLs in code
+- Consider security implications when configuring CORS
+- Keep configuration files in source control (except for sensitive data)
