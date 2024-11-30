@@ -225,3 +225,154 @@ While these CORS mechanisms operate automatically in the browser, understanding 
 4. Ensuring proper handling of credentials and sensitive data
 
 This preflight system ensures secure cross-origin communication while providing performance optimizations through caching, making it a fundamental part of modern web security architecture.
+
+
+# Implementing CORS in ASP.NET Core
+
+## Overview
+There are two main approaches to implementing CORS in ASP.NET Core:
+- Using AllowAll policy (for public APIs)
+- Using specific origins (recommended for secure applications)
+
+## Implementation Options
+
+### 1. Allow All Origins Configuration
+
+```csharp
+public static class DependencyInjection 
+{
+    public static IServiceCollection AddDependencies(
+        this IServiceCollection services, 
+        IConfiguration configuration)
+    {
+        services.AddControllers();
+        
+        // CORS configuration for all origins
+        services.AddCors(options => 
+            options.AddPolicy("AllowAll", builder =>
+                builder
+                    .AllowAnyOrigin()
+                    .AllowAnyMethod()
+                    .AllowAnyHeader()
+            )
+        );
+
+        services.AddAuthConfig(configuration);
+        
+        // Database configuration
+        var connectionString = configuration.GetConnectionString("DefaultConnection") ??
+            throw new InvalidOperationException(
+                "Connection string 'DefaultConnection' not found.");
+                
+        services.AddDbContext<ApplicationDbContext>(options => 
+            options.UseSqlServer(connectionString));
+            
+          // Rest of the configuration.........
+    }
+}
+```
+
+### 2. Specific Origin Configuration (Recommended)
+
+```csharp
+public static class DependencyInjection 
+{
+    public static IServiceCollection AddDependencies(
+        this IServiceCollection services, 
+        IConfiguration configuration)
+    {
+        services.AddControllers();
+        
+        // CORS configuration for specific origin
+        services.AddCors(options => 
+            options.AddPolicy("MyPolicy", builder =>
+                builder
+                    .AllowAnyMethod()
+                    .AllowAnyHeader()
+                    .WithOrigins("http://localhost:5173") // Specific origin
+            )
+        );
+
+        // Rest of the configuration remains the same
+        // ...
+    }
+}
+```
+
+### Program.cs Configuration
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddDependencies(builder.Configuration);
+
+var app = builder.Build();
+
+// Development environment configuration
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+
+// Important: CORS middleware must be before Authorization
+app.UseCors("MyPolicy"); // Use your policy name
+
+app.UseAuthorization();
+app.MapControllers();
+app.Run();
+```
+
+## Critical Considerations
+
+### Middleware Order
+1. CORS middleware (`app.UseCors()`) must be placed before Authorization
+2. This order ensures the browser can:
+   - First check if the origin is allowed
+   - Then proceed with authorization checks
+
+### Security Best Practices
+1. For Production:
+   - Avoid using `AllowAll` policy
+   - Specify exact origins that can access your API
+   - Use `WithOrigins()` with specific domains
+
+2. For Development:
+   - Can use more permissive policies
+   - Common to allow localhost domains
+   - Still recommended to specify exact origins
+
+### Configuration Options
+1. Policy Names:
+   - Use meaningful names (e.g., "MyPolicy", "AllowAll")
+   - Be consistent across your application
+   - Consider using constants for policy names
+
+2. Origin Configuration:
+   - `WithOrigins()` accepts multiple domains
+   - Include protocol (http/https)
+   - Include port numbers when necessary
+
+## Examples
+
+### Multiple Origins
+```csharp
+.WithOrigins(
+    "http://localhost:5173",
+    "https://yourdomain.com",
+    "https://api.yourdomain.com"
+)
+```
+
+### Development vs Production
+```csharp
+if (environment.IsDevelopment())
+{
+    builder.AllowAnyOrigin();
+}
+else
+{
+    builder.WithOrigins("https://production-domain.com");
+}
+```
