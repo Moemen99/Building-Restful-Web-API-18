@@ -681,3 +681,106 @@ public class ServiceController : ControllerBase
     }
 }
 ```
+# Simplified CORS Implementation in ASP.NET Core
+
+## Overview
+For applications with simple CORS requirements, we can use a default policy configuration instead of named policies. This approach is cleaner and easier to maintain.
+
+## DependencyInjection Configuration
+
+```csharp
+public static class DependencyInjection 
+{
+    public static IServiceCollection AddDependencies(
+        this IServiceCollection services, 
+        IConfiguration configuration)
+    {
+        services.AddControllers();
+        
+        // Configure default CORS policy
+        services.AddCors(options => 
+            options.AddDefaultPolicy(builder =>
+                builder
+                    .AllowAnyMethod()
+                    .AllowAnyHeader()
+                    .WithOrigins(configuration.GetSection("AllowedOrigins").Get<string[]>()!)
+            )
+        );
+
+        services.AddAuthConfig(configuration);
+        
+        var connectionString = configuration.GetConnectionString("DefaultConnection") ??
+            throw new InvalidOperationException(
+                "Connection string 'DefaultConnection' not found.");
+                
+        services.AddDbContext<ApplicationDbContext>(options => 
+            options.UseSqlServer(connectionString));
+            
+        // Rest of configurations...
+    }
+}
+```
+
+## Program.cs Configuration
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddDependencies(builder.Configuration);
+
+var app = builder.Build();
+
+// Configure HTTP request pipeline
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+
+// Use default CORS policy
+app.UseCors();
+
+app.UseAuthorization();
+app.MapControllers();
+app.Run();
+```
+
+## Key Points
+
+1. **Default Policy**
+   - Uses `AddDefaultPolicy` instead of named policies
+   - Simplifies middleware configuration
+   - No need to specify policy names
+
+2. **Configuration**
+   - Origins still loaded from configuration files
+   - Maintains environment-specific settings
+   - Cleaner middleware setup
+
+3. **Middleware Order**
+   - CORS middleware before Authorization
+   - Simple `app.UseCors()` call
+   - No policy name required
+
+## Benefits
+
+1. **Simplicity**
+   - Less code to maintain
+   - Clearer intent
+   - Reduced chance of errors
+
+2. **Maintainability**
+   - Single policy to manage
+   - Configuration still in appsettings
+   - Straightforward setup
+
+3. **Clarity**
+   - Clear middleware pipeline
+   - No policy name management
+   - Easier to understand
+
+This simplified approach is ideal for applications that:
+- Have consistent CORS requirements across all endpoints
+- Need environment-specific origin configuration
+- Want to minimize configuration complexity
