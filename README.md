@@ -516,3 +516,168 @@ public static class DependencyInjection
 - Avoid hardcoding URLs in code
 - Consider security implications when configuring CORS
 - Keep configuration files in source control (except for sensitive data)
+
+
+
+
+# Advanced CORS Policy Configuration in ASP.NET Core
+
+## Policy Name Constants
+
+### PolicyConstants.cs
+```csharp
+public static class PolicyConstants
+{
+    public const string ReactAppPolicy = "MyPolicy1";
+    public const string AngularAppPolicy = "MyPolicy2";
+    // Add more policy names as needed
+}
+```
+
+## Multiple Policy Configuration
+
+```csharp
+services.AddCors(options => 
+{
+    // Policy for React Application (e.g., User Interface)
+    options.AddPolicy(PolicyConstants.ReactAppPolicy, builder =>
+        builder
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .WithOrigins("xyz.com")
+    );
+
+    // Policy for Angular Application (e.g., Admin Dashboard)
+    options.AddPolicy(PolicyConstants.AngularAppPolicy, builder =>
+        builder
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .WithOrigins("abc.com")
+    );
+});
+```
+
+## Endpoint-Specific CORS Control
+
+### Disable CORS for Specific Endpoints
+
+```csharp
+[ApiController]
+[Route("api/[controller]")]
+public class SensitiveController : ControllerBase
+{
+    [DisableCors]
+    [HttpGet]
+    public IActionResult GetSensitiveData()
+    {
+        // This endpoint will not allow any CORS requests
+        return Ok();
+    }
+}
+```
+
+### Enable Specific Policy for Endpoints
+
+```csharp
+[ApiController]
+[Route("api/[controller]")]
+public class UserController : ControllerBase
+{
+    [EnableCors(PolicyConstants.ReactAppPolicy)]
+    [HttpGet]
+    public IActionResult GetUserData()
+    {
+        // Only xyz.com can access this endpoint
+        return Ok();
+    }
+
+    [EnableCors(PolicyConstants.AngularAppPolicy)]
+    [HttpGet("admin")]
+    public IActionResult GetAdminData()
+    {
+        // Only abc.com can access this endpoint
+        return Ok();
+    }
+}
+```
+
+## Usage in Program.cs
+
+```csharp
+app.UseCors(PolicyConstants.ReactAppPolicy); // Use constant instead of hard-coded string
+```
+
+## Important Considerations
+
+1. **Policy Management**
+   - Use constants for policy names to avoid typos
+   - Keep policy definitions centralized
+   - Document the purpose of each policy
+
+2. **Granular Control**
+   - `[DisableCors]` prevents any CORS requests
+   - `[EnableCors("PolicyName")]` allows specific origins
+   - Can be applied at controller or action level
+
+3. **Use Cases**
+   - Different policies for different client applications
+   - Restricted access to sensitive endpoints
+   - Separate policies for user/admin interfaces
+
+4. **Best Practices**
+   - Keep policy names in a constants file
+   - Document policy purposes and restrictions
+   - Consider security implications carefully
+
+## ⚠️ Note
+While granular CORS control is available, it's recommended to:
+- Use it sparingly
+- Keep CORS configuration simple when possible
+- Document clearly when using multiple policies
+- Consider maintenance overhead before implementing complex CORS rules
+
+## Example Scenarios
+
+### Scenario 1: Mixed Access Levels
+```csharp
+[ApiController]
+[Route("api/[controller]")]
+public class MixedAccessController : ControllerBase
+{
+    [EnableCors(PolicyConstants.ReactAppPolicy)]
+    [HttpGet("public")]
+    public IActionResult PublicEndpoint()
+    {
+        return Ok("Access from React App");
+    }
+
+    [DisableCors]
+    [HttpGet("internal")]
+    public IActionResult InternalEndpoint()
+    {
+        return Ok("No CORS access allowed");
+    }
+}
+```
+
+### Scenario 2: Controller-Level Policy with Exception
+```csharp
+[EnableCors(PolicyConstants.ReactAppPolicy)]
+[ApiController]
+[Route("api/[controller]")]
+public class ServiceController : ControllerBase
+{
+    [HttpGet]
+    public IActionResult NormalAccess()
+    {
+        return Ok("React App Access");
+    }
+
+    [EnableCors(PolicyConstants.AngularAppPolicy)]
+    [HttpGet("admin")]
+    public IActionResult AdminAccess()
+    {
+        return Ok("Angular App Access");
+    }
+}
+```
